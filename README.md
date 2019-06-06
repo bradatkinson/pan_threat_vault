@@ -25,7 +25,7 @@ python pan_threat_vault.py
 
 ## Changelog
 
-See the [CHANGELOG](CHANGELOG) file for details
+See the [CHANGELOG](CHANGELOG.md) file for details
 
 ## License
 
