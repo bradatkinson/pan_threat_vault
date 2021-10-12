@@ -4,7 +4,7 @@ The purpose of this script is to pull the Threat Vault info from a PAN device an
 
 ## Built With
 
-[Palo Alto Networks Device Framework (pandevice)](https://github.com/PaloAltoNetworks/pandevice)\
+[Palo Alto Networks PAN-OS SDK for Python](https://github.com/PaloAltoNetworks/pan-os-python)  
 [Arrow](https://arrow.readthedocs.io/en/latest/)
 
 ## Deployment
