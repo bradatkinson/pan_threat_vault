@@ -1,0 +1,8 @@
+version: '3'
+services:
+  python:
+    container_name: pan_threat_vault
+    build: .
+    volumes:
+      - ./data:/code/data
+      - ./log:/code/log

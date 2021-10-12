@@ -15,7 +15,7 @@ from pathlib import Path
 from panos import panorama
 
 # Directories
-script_dir = Path('/usr/local/bin')
+script_dir = Path('/code')
 data_dir = script_dir / 'data'
 log_dir = script_dir / 'log'
 

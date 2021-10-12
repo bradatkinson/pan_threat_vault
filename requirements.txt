@@ -1,0 +1,4 @@
+pandevice
+pan-os-python
+arrow
+pathlib2

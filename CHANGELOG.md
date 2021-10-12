@@ -1,5 +1,6 @@
 2021-10-12
 - Update module
+- Add Docker files for easier deployment
 
 2019-06-24
 - Add logging capabilities
