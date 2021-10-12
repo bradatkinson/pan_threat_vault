@@ -12,7 +12,7 @@ import arrow
 import logging
 import logging.handlers as handlers
 from pathlib import Path
-from pandevice import panorama
+from panos import panorama
 
 # Directories
 script_dir = Path('/usr/local/bin')

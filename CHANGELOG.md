@@ -1,3 +1,6 @@
+2021-10-12
+- Update module
+
 2019-06-24
 - Add logging capabilities
 
