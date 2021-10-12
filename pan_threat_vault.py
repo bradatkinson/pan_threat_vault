@@ -1,31 +1,40 @@
-#!/usr/bin/env python
-
-# Copyright (c) 2019 Brad Atkinson <brad.scripting@gmail.com>
+#!/usr/bin/env python3
 #
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+#  AUTHOR: Brad Atkinson
+#    DATE: 4/15/2019
+# PURPOSE: To pull the Threat Vault from a PAN device and parse to a CSV file
 
 import os
 import csv
 import json
 import config
 import arrow
+import logging
+import logging.handlers as handlers
+from pathlib import Path
 from pandevice import panorama
+
+# Directories
+script_dir = Path('/usr/local/bin')
+data_dir = script_dir / 'data'
+log_dir = script_dir / 'log'
+
+# Logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter(
+    '%(asctime)s   Line: %(lineno)-4d   Func: %(funcName)-26s   Msg: %(message)s',
+    datefmt='%m/%d %I:%M:%S %p')
+
+log_file = log_dir / 'pan_threat_vault.log'
+log_handler = handlers.TimedRotatingFileHandler(log_file,
+                                                when='H',
+                                                interval=1,
+                                                backupCount=3)
+log_handler.setLevel(logging.INFO)
+log_handler.setFormatter(formatter)
+logger.addHandler(log_handler)
 
 
 def get_pano_connection():
@@ -37,6 +46,7 @@ def get_pano_connection():
     pano : Panorama
         A PanDevice for Panorama
     """
+    logger.info('Connecting to device')
     key = config.paloalto['key']
     panorama_ip = config.paloalto['panorama_ip']
 
@@ -63,7 +73,9 @@ def get_threat_list(pano, xpath, find_path):
     threat_dict : dict
         A dictionary of strings containing threat information
     """
-    results = pano.op(cmd='<show><predefined><xpath>{}</xpath></predefined></show>'.format(xpath), cmd_xml=False)
+    logger.info('Gathering threat list')
+    results = pano.op(cmd='<show><predefined><xpath>{}</xpath></predefined></show>'
+        .format(xpath), cmd_xml=False)
     threat_xml_list = results.findall(find_path)
     threat_dict = process_threat_list(threat_xml_list)
     return threat_dict
@@ -86,6 +98,7 @@ def process_threat_list(threat_xml_list):
     threat_dict : dict
         A dictionary of strings containing threat information
     """
+    logger.info('Processing threat list')
     threat_dict = {}
 
     for threat in threat_xml_list:
@@ -130,6 +143,7 @@ def process_threat_list(threat_xml_list):
                                   'cve': cve,
                                   'affected-host': affected_host}
 
+    logger.debug(threat_dict)
     return threat_dict
 
 
@@ -157,6 +171,7 @@ def compare_dictionaries(threat_dict, stored_threat_dict, pano):
     stored_threat_dict : dict
         A dictionary of strings containing threat information stored to JSON
     """
+    logger.info('Comparing dictionaries')
     updated_threat_dict = dict(threat_dict)
 
     for threat_id in threat_dict:
@@ -178,6 +193,7 @@ def compare_dictionaries(threat_dict, stored_threat_dict, pano):
             stored_threat_dict[threat_id] = single_threat_dict
 
     threat_dict = dict(updated_threat_dict)
+    logger.debug(threat_dict)
     return (threat_dict, stored_threat_dict)
 
 
@@ -200,9 +216,12 @@ def get_threat_id_info(pano, threat_dict, threat_id):
     threat_dict : dict
         A dictionary of strings containing threat information
     """
-    results = pano.op(cmd='<show><threat><id>{}</id></threat></show>'.format(threat_id), cmd_xml=False)
+    logger.info('Gathering thread id info')
+    results = pano.op(cmd='<show><threat><id>{}</id></threat></show>'
+        .format(threat_id), cmd_xml=False)
     threat_xml_list = results.findall('./result/entry')
-    threat_dict = process_threat_id_info(threat_id, threat_xml_list, threat_dict)
+    threat_dict = process_threat_id_info(threat_id, threat_xml_list,
+        threat_dict)
 
     return threat_dict
 
@@ -227,6 +246,7 @@ def process_threat_id_info(threat_id, threat_xml_list, threat_dict):
     threat_dict : dict
         A dictionary of strings containing threat information
     """
+    logger.info('Processing threat id info')
     for threat in threat_xml_list:
         description = threat.find('./description').text
         description = description.rstrip()
@@ -247,6 +267,7 @@ def process_threat_id_info(threat_id, threat_xml_list, threat_dict):
         single_threat_dict['reference'] = reference
         single_threat_dict['bugtraq'] = bugtraq
 
+    logger.debug(threat_dict)
     return threat_dict
 
 
@@ -261,7 +282,8 @@ def write_json(threat_dict, filename):
     filename : str
         A string containing the filename of the file
     """
-    with open('{}.json'.format(filename), 'w') as json_file:
+    logger.info('Writing JSON file')
+    with open(data_dir / '{}.json'.format(filename), 'w') as json_file:
         json.dump(threat_dict, json_file, indent=2)
 
 
@@ -279,7 +301,8 @@ def read_json(filename):
     threat_dict : dict
         A dictionary of strings containing threat information
     """
-    with open('{}.json'.format(filename), 'r') as json_file:
+    logger.info('Reading JSON file')
+    with open(data_dir / '{}.json'.format(filename), 'r') as json_file:
         threat_dict = json.load(json_file)
         return threat_dict
 
@@ -294,12 +317,14 @@ def parse_data_into_csv(threat_dict):
     threat_dict : dict
         A dictionary of strings containing threat information
     """
+    logger.info('Parsing data into CSV file')
     date_time = arrow.now()
     date = date_time.format('YYYY-MM-DD')
-    csv_filename = 'threat_vault_{}.csv'.format(date)
+    csv_filename = data_dir / 'threat_vault_{}.csv'.format(date)
 
     if os.path.isfile(csv_filename):
         os.remove(csv_filename)
+        logger.debug('Removed {}'.format(csv_filename))
 
     with open(csv_filename, mode='a') as csv_file:
         fieldnames = [
@@ -339,9 +364,11 @@ def gather_threat_info(pano, filename, xpath, find_path):
     find_path : str
         A string containing the XML search path
     """
+    logger.info('Gathering threat info')
     stored_threat_dict = read_json(filename)
     threat_dict = get_threat_list(pano, xpath, find_path)
-    threat_dict, stored_threat_dict = compare_dictionaries(threat_dict, stored_threat_dict, pano)
+    threat_dict, stored_threat_dict = compare_dictionaries(threat_dict, 
+        stored_threat_dict, pano)
     write_json(stored_threat_dict, filename)
 
     if len(threat_dict) != 0:
@@ -353,19 +380,22 @@ def main():
     Set filename, API xpath, and XML search path for vulnerability and
     phone-home threats and proceed with gathering threat info
     """
+    logger.info('Starting script')
     pano = get_pano_connection()
 
-    # Vulnerability
+    logger.info('Vulnerability')
     filename = 'vulnerability'
     xpath = '/predefined/threats/vulnerability'
     find_path = './result/vulnerability/entry'
     gather_threat_info(pano, filename, xpath, find_path)
 
-    # Phone Home
+    logger.info('Phone Home')
     filename = 'phone-home'
     xpath = '/predefined/threats/phone-home'
     find_path = './result/phone-home/entry'
-    gather_threat_info(pano, filename, xpath, find_path)  
+    gather_threat_info(pano, filename, xpath, find_path)
+
+    logger.info('Finished script')
 
 
 if __name__ == '__main__':

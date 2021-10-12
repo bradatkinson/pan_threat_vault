@@ -1,3 +1,6 @@
+2019-06-24
+- Add logging capabilities
+
 2019-05-16
 - Update documentation and docstrings
 - Fix linting errors
